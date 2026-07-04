@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: cyd-resend-mail
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: RESEND_API_KEY
+        sync: false
+      - key: FROM_EMAIL
+        sync: false
+      - key: ADMIN_EMAIL
+        sync: false

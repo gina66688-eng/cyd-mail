@@ -1,0 +1,18 @@
+{
+  "name": "cyd-resend-mail",
+  "version": "1.0.0",
+  "description": "超越巔峰 AI流量變現實戰營 - Resend 預約/訂單郵件後端",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2"
+  }
+}
