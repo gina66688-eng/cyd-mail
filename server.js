@@ -21,6 +21,58 @@ const FROM_EMAIL  = process.env.FROM_EMAIL  || '超越巔峰 <onboarding@resend.
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'gina66688@gmail.com';
 const BRAND = '超越巔峰・AI流量變現實戰營';
 
+/* ---------- 前台設定（存 Firestore，優雅降級到記憶體） ---------- */
+const CONFIG_PW = process.env.CONFIG_PW || 'admin168';
+const DEFAULT_CONFIG = {
+  video: 'https://youtu.be/4FOP2aYJBII',
+  dailyTimes: ['14:00', '20:00'],
+  instantMin: 30,
+  urgencyMin: 60,
+  enrollN: 88,
+  enrollG: 100,
+};
+let memConfig = null;   // 若沒接 Firebase，先用記憶體（重啟會清空）
+let db = null;
+try {
+  const sa = process.env.FIREBASE_SERVICE_ACCOUNT;
+  if (sa) {
+    const admin = require('firebase-admin');
+    admin.initializeApp({ credential: admin.credential.cert(JSON.parse(sa)) });
+    db = admin.firestore();
+    console.log('✅ Firestore 已連線（設定將永久保存）');
+  } else {
+    console.log('ℹ️ 未設定 FIREBASE_SERVICE_ACCOUNT，設定暫存於記憶體');
+  }
+} catch (e) {
+  console.error('Firebase 初始化略過：', e.message);
+}
+
+async function getConfig() {
+  if (db) {
+    try {
+      const doc = await db.collection('site').doc('config').get();
+      if (doc.exists) return Object.assign({}, DEFAULT_CONFIG, doc.data());
+    } catch (e) { console.error('讀取設定失敗：', e.message); }
+  }
+  return memConfig || DEFAULT_CONFIG;
+}
+async function setConfig(cfg) {
+  const clean = {
+    video: String(cfg.video || ''),
+    dailyTimes: Array.isArray(cfg.dailyTimes) ? cfg.dailyTimes.map(String) : [],
+    instantMin: Number(cfg.instantMin) || 0,
+    urgencyMin: Number(cfg.urgencyMin) || 0,
+    enrollN: Number(cfg.enrollN) || 0,
+    enrollG: Number(cfg.enrollG) || 100,
+  };
+  memConfig = Object.assign({}, DEFAULT_CONFIG, clean);
+  if (db) {
+    try { await db.collection('site').doc('config').set(clean, { merge: true }); }
+    catch (e) { console.error('寫入設定失敗：', e.message); }
+  }
+  return memConfig;
+}
+
 /* ---------- 寄信底層（呼叫 Resend REST API） ---------- */
 async function sendEmail({ to, subject, html }) {
   if (!RESEND_API_KEY) throw new Error('尚未設定 RESEND_API_KEY，請檢查 .env');
@@ -113,6 +165,18 @@ app.post('/api/order', async (req, res) => {
     console.error('寄信失敗：', e.message);
     res.status(500).json({ error: String(e.message || e), results });
   }
+});
+
+/* ---------- 設定 API ---------- */
+app.get('/config', async (_req, res) => {
+  res.json(await getConfig());
+});
+app.post('/config', async (req, res) => {
+  const { pw, config } = req.body || {};
+  if (pw !== CONFIG_PW) return res.status(401).json({ error: '密碼錯誤' });
+  if (!config || typeof config !== 'object') return res.status(400).json({ error: '缺少 config' });
+  const saved = await setConfig(config);
+  res.json({ ok: true, config: saved });
 });
 
 app.get('/', (_req, res) => res.send('✅ 超越巔峰 Resend 郵件後端運作中。POST /api/order 觸發三封信。'));
